@@ -7,3 +7,9 @@ Three Classification Methods are usedin this exercise
 1. RPART  - Recursive PARTitioning
 2. Naive-Bayes
 3. SVM - Support Vector Machines
+
+
+* Bullet list
+ * Nested bullet
+  * Sub-nested bullet etc
+* Bullet list item 2
