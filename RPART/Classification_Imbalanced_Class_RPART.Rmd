@@ -1,1 +1,315 @@
+---
+title: "Classification: Imbalanced Class"
 
+output: html_notebook
+---
+###Rebalance: Seismic Data
+###Classification: RPART
+<br /><br />
+Everyone of us has a built-in ability (refined over time) to analyse and categorize what we see and experience, say "A Beautiful Day" by glancing outside of the window or "Satisfied" when taking a survey. This is classification at a personal level, but, applying this in the context of Machine Learning represents a supervised machine learning technique.
+
+
+<blockquote style="font-size: 13px; font-style: italic;">
+Machine learning is programming computers to optimize a performance criterion using example data or past experience.[^1]
+</blockquote>
+
+In effect, with supervised learning, a model is built that is able to best relate the effect one set of observations (independent or predictor variables) has on another set of observations (dependent or target variables).
+
+The task of the classification model, is to predict the label or class of the target variable, for a given set of predictor variables which are unlabeled (un-classified). Normally, when examining Classification and its efficacy, the data used tends to be well-behaved (no missing data, balanced classes, etc..), consider the dataset that has Seismic Data recorded at a Polish coal mine.
+
+This is a very imbalanced dataset:
+
+<blockquote style="font-size: 13px; font-style: italic;">
+The presented dataset is characterized by unbalanced distribution of positive and negative examples.
+In the data set there are only 170 positive examples representing class 1.[^2]
+</blockquote>
+
+```{r}
+library(foreign)
+library(mlr)
+library(ROSE)
+library(FSelector)
+set.seed(4567)
+```
+
+
+
+###Read the Data
+```{r}
+seismicData <- read.arff("data/seismic-bumps.arff")
+
+summary(seismicData)
+
+summary(seismicData$class)
+
+# Remove the predictor variables that are constant
+# or have zero variance
+seismicData <- removeConstantFeatures(seismicData)
+
+# Check the target variable class distribution
+prop.table(table(seismicData$class))
+
+# As percentage
+table(seismicData$class)/nrow(seismicData)*100
+```
+
+
+
+
+
+<br />
+More than 93% of the target variable (class) is negative (0) or "non-hazardous", which it should be, since the "shift" predictor variable (column 3) shows more mining activity (W - coal getting) than the provisioning activity (N - preparation). Provisioning activity, would include blasting, moving heavy machinery, etc..
+
+But,
+
+<blockquote style="font-size: 13px; font-style: italic;">
+Unbalanced distribution of positive ('hazardous state') and negative
+('non-hazardous state') examples is a serious problem in seismic hazard prediction.
+<br /><br />
+In the data set each row contains a summary statement about seismic activity in the rock mass within
+one shift (8 hours). If decision attribute has the value 1, then in the next shift any seismic bump
+with an energy higher than 10^4 J was registered.
+</blockquote>
+
+Thus, the main intent of this exercise is to try re-balance the data [^3]. Evaluate the classification (the target class is a categorical variable) and document the improvement in predicting if an increase in seismic activity can result in a rock burst.
+
+
+###Rebalancing
+I am going to use the <a href="http://mlr-org.github.io/mlr-tutorial/release/html/index.html">mlr</a> and <a href="https://cran.r-project.org/web/packages/ROSE/index.html">ROSE</a> CRAN libraries. I would have preffered to use just one library, <b>mlr</b>, but unfortunately the logic of combined over-under sampling is yet to be implements (as of current release v2.9). ROSE has this composite over-under sampling method, which I am going to apply here.
+
+The steps I am going to follow are:
+<ul>
+  <li>Oversample, Undersample, Balancesample and SMOTEsample the training subset</li>
+  <li>Apply RPART classifier to the respective datasets, for this blog post</li>
+  <li>Apply Naive Bayes and SVM classifiers to the respective datasets, to be covered in subsequent blog posts</li>
+  <li>Determine which of the 3 classifiers provide better results, as a concluding blog post, for this series</li>
+</ul>
+
+
+
+
+
+Split the Seismic Data into training and testing set
+```{r}
+sample_index <- sample(2, 
+                       nrow(seismicData),
+                       replace = T,
+                       prob = c(0.75,0.25))
+#
+#
+seismicData_train <- seismicData[sample_index ==1 ,]
+#
+#
+seismicData_test <- seismicData[sample_index == 2,]
+
+```
+
+Check the distribution of the target variable class, in the training set
+```{r}
+# As numbers
+table(seismicData_train$class)
+
+# As percentage
+table(seismicData_train$class)/nrow(seismicData_train)*100
+
+```
+
+The test set has the following distribution.
+```{r}
+# As numbers
+table(seismicData_test$class)
+
+# As percentage
+table(seismicData_test$class)/nrow(seismicData_test)*100
+```
+Notice the training and test sets, have nearly the same distribution of the predictor variable, class.
+
+<br />
+
+The first step when using the mlr package, is to define a task and perform the sampling on the training set. To overcome the lack of balanced sampling, I used the ROSE package.
+
+Reference[3] has a visual explanation to aid the concept of over and under sampling.
+
+In principle, over-sampling is where the minority class (positive/1 in this dataset) is randomly sampled and its number is augmented to bring it on-par with the majority class (negative/0 in this dataset). Under-sampling on the other hand, randomly selects data from the majority class and discards them, so that both the classes even out, as seen in the next section. Balanced sampling is a combination of both, under and over sampling.
+
+After some trial-and-error, the rate setting for the over and under sampling was chosen so as to have the negative and positive class numbers as close as possible (as seen by the distribution)
+```{r}
+#Define the basic classification task
+task_train <- makeClassifTask(data = seismicData_train, target = "class")
+
+#Over sampling task
+task_train_over <- oversample(task_train, rate = 13.4)
+
+#Under sampling task
+task_train_under <- undersample(task_train, rate = 1/13.4)
+
+#Balanced sampling using the ROSE package, combination of over and under sampling
+seismicData_train_balanced <- ovun.sample(class ~ ., data = seismicData_train, method = "both", p = 0.5)$data
+
+#Balanced sampling task
+task_train_balanced <- makeClassifTask(data = seismicData_train_balanced, target = "class")
+
+#SMOTE(Synthetic Minority Oversampling Technique)
+task_train_smote <- smote(task_train, rate = 13.4, nn = 10)
+```
+
+Distribution of training set, unbalanced.
+```{r}
+# As numbers
+table(getTaskTargets(task_train))
+
+# As percentage
+table(getTaskTargets(task_train))/nrow(seismicData_train)*100
+
+```
+Distribution of training set, over-balanced.
+```{r}
+# As numbers
+table(getTaskTargets(task_train_over))
+
+# As percentage
+table(getTaskTargets(task_train_over))/nrow(seismicData_train)*100
+```
+
+
+Distribution of training set, under-balanced.
+```{r}
+# As numbers
+table(getTaskTargets(task_train_under))
+
+# As percentage
+table(getTaskTargets(task_train_under))/nrow(seismicData_train)*100
+```
+
+
+Distribution of training set, balanced.
+```{r}
+table(getTaskTargets(task_train_balanced))
+
+table(getTaskTargets(task_train_balanced))/nrow(seismicData_train)*100
+```
+
+Distribution of training set, SMOTE.
+```{r}
+table(getTaskTargets(task_train_smote))
+
+table(getTaskTargets(task_train_smote))/nrow(seismicData_train)*100
+```
+
+
+Notice the training set, post-sampling, has nearly the same distribution for the majority and minority predictor variable, class. This suggests that the sampling was successful. Lets move on to using RPART to perform the classification and see what is the performance when the data is balanced by the 3 sampling processes.
+
+
+
+
+<br /><br />
+
+###RPART
+RPART stands for <b>R</b>ecursive <b>PART</b>itioning, a tree-based method of partitioning. Under the hood it implements constructs articulated in the CART (Classification and Regression Trees) book and programs of Breiman, Friedman, Olshen and Stone.[^4],[^5]
+
+
+<br />
+Define a RPART learner, train it on the sampled training set and perform the classification on the testing set.
+
+```{r}
+learner_rpart <- makeLearner("classif.rpart", predict.type = "prob")
+```
+
+
+Train on the imbalanced training data.
+```{r}
+model_rpart_train <- train(learner_rpart, task_train)
+```
+
+
+Train on the balance-sampled training data.
+```{r}
+model_rpart_train_balanced <- train(learner_rpart, task_train_balanced) #balanced sampling
+```
+
+
+Train on the over-sampled training data.
+```{r}
+model_rpart_train_over <- train(learner_rpart, task_train_over) #over sampling
+```
+
+
+Train on the under-sampled training data.
+```{r}
+model_rpart_train_under <- train(learner_rpart, task_train_under) #under sampling
+```
+
+Train on the SMOTE-sampled training data.
+```{r}
+model_rpart_train_smote <- train(learner_rpart, task_train_smote) #SMOTE sampling
+```
+
+Now, using the test set, perform the classification prediction and evaluate the performance. There a variety of performance measures [^6], but I have chosen the following:
+<ul>
+  <li>mmce - Mean mis-classification error</li>
+  <li>ber - Balanced error rate</li>
+  <li>auc - Area under the curve</li>
+</ul>
+
+```{r}
+
+# Performance of the model using the un-balanced training set.
+performance(predict(model_rpart_train, newdata = seismicData_test), measures = list(mmce, ber, auc))
+```
+
+
+```{r}
+# Performance of the model using the balanced training set.
+performance(predict(model_rpart_train_balanced, newdata = seismicData_test), measures = list(mmce, ber, auc))
+```
+
+
+```{r}
+# Performance of the model using the over-balanced training set.
+performance(predict(model_rpart_train_over, newdata = seismicData_test), measures = list(mmce, ber, auc))
+```
+
+
+```{r}
+# Performance of the model using the under-balanced training set.
+performance(predict(model_rpart_train_under, newdata = seismicData_test), measures = list(mmce, ber, auc))
+```
+
+```{r}
+# Performance of the model using the SMOTE training set.
+performance(predict(model_rpart_train_smote, newdata = seismicData_test), measures = list(mmce, ber, auc))
+```
+
+
+Even though, the performance of the model using un-balanced dataset, has low mmce (0.053) and modest auc (0.5), it certainly hides the imbalance of the predictor class.
+
+The performance results indicate that the model using SMOTE-sampling of the imbalanced dataset does better than the others, in light of the following from the developers of the mlr package.
+
+<blockquote style="font-size: 13px; font-style: italic;">
+Performance measure has to be considered very carefully.
+<br />
+As the misclassification rate (mmce) evaluates the overall accuracy of the predictions, the balanced error rate (ber) and area under the ROC Curve (auc) might be more suitable here, as the misclassifications within each class are separately taken into account.
+</blockquote>
+
+
+
+
+
+
+
+
+
+
+
+###<i>References</i>
+[^1]: Alpaydin, Ethem (2014). Introduction to Machine Learning, Third Edition. MIT Press. ISBN 978-0-262-02818-9.
+
+[^2]: UCI Machine Learning Repository (https://archive.ics.uci.edu/ml/datasets/seismic-bumps)
+
+[^3]: Learning from Imbalanced Classes (https://svds.com/learning-imbalanced-classes/)
+
+[^4]: L. Breiman, J.H. Friedman, R.A. Olshen, , and C.J Stone. Classification and Regression Tree.  Wadsworth, Belmont, Ca, 1983.
+
+[^5]: T.M Therneau and E.J Atkinson. An Introduction to Recursive Partitioning Using the RPART Routines, Mayo Clinic, 2016.(https://cran.r-project.org/web/packages/rpart/vignettes/longintro.pdf)
+
+[^6]: Implemented Performance Measures, Machine Learning in R. (http://mlr-org.github.io/mlr-tutorial/release/html/measures/index.html)
