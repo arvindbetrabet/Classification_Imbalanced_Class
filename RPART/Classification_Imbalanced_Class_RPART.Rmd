@@ -80,7 +80,7 @@ I am going to use the <a href="http://mlr-org.github.io/mlr-tutorial/release/htm
 The steps I am going to follow are:
 <ul>
   <li>Oversample, Undersample, Balancesample and SMOTEsample the training subset</li>
-  <li>Apply RPART classifier to the respective datasets, for this blog post</li>
+  <li>Apply RPART classifier to the respective subsets, for this blog post</li>
   <li>Apply Naive Bayes and SVM classifiers to the respective datasets, to be covered in subsequent blog posts</li>
   <li>Determine which of the 3 classifiers provide better results, as a concluding blog post, for this series</li>
 </ul>
