@@ -162,7 +162,7 @@ table(getTaskTargets(task_train))
 table(getTaskTargets(task_train))/nrow(seismicData_train)*100
 
 ```
-Distribution of training set, over-balanced.
+Distribution of training set, over-sampled.
 ```{r}
 # As numbers
 table(getTaskTargets(task_train_over))
@@ -172,7 +172,7 @@ table(getTaskTargets(task_train_over))/nrow(seismicData_train)*100
 ```
 
 
-Distribution of training set, under-balanced.
+Distribution of training set, under-sampled.
 ```{r}
 # As numbers
 table(getTaskTargets(task_train_under))
@@ -182,14 +182,14 @@ table(getTaskTargets(task_train_under))/nrow(seismicData_train)*100
 ```
 
 
-Distribution of training set, balanced.
+Distribution of training set, balance-sampled.
 ```{r}
 table(getTaskTargets(task_train_balanced))
 
 table(getTaskTargets(task_train_balanced))/nrow(seismicData_train)*100
 ```
 
-Distribution of training set, SMOTE.
+Distribution of training set, SMOTE-sampled.
 ```{r}
 table(getTaskTargets(task_train_smote))
 
@@ -197,7 +197,7 @@ table(getTaskTargets(task_train_smote))/nrow(seismicData_train)*100
 ```
 
 
-Notice the training set, post-sampling, has nearly the same distribution for the majority and minority predictor variable, class. This suggests that the sampling was successful. Lets move on to using RPART to perform the classification and see what is the performance when the data is balanced by the 3 sampling processes.
+Notice the training set, post-sampling, has nearly the same distribution for the majority and minority predictor variable, class. This suggests that the sampling was successful. Lets move on to using RPART to perform the classification and see what is the performance when the data is balanced by the 4 sampling processes.
 
 
 
@@ -259,24 +259,24 @@ performance(predict(model_rpart_train, newdata = seismicData_test), measures = l
 
 
 ```{r}
-# Performance of the model using the balanced training set.
+# Performance of the model using the balance-sampling balanced training set.
 performance(predict(model_rpart_train_balanced, newdata = seismicData_test), measures = list(mmce, ber, auc))
 ```
 
 
 ```{r}
-# Performance of the model using the over-balanced training set.
+# Performance of the model using the over-sampling balanced training set.
 performance(predict(model_rpart_train_over, newdata = seismicData_test), measures = list(mmce, ber, auc))
 ```
 
 
 ```{r}
-# Performance of the model using the under-balanced training set.
+# Performance of the model using the under-sampling balanced training set.
 performance(predict(model_rpart_train_under, newdata = seismicData_test), measures = list(mmce, ber, auc))
 ```
 
 ```{r}
-# Performance of the model using the SMOTE training set.
+# Performance of the model using the SMOTE-sampling balanced training set.
 performance(predict(model_rpart_train_smote, newdata = seismicData_test), measures = list(mmce, ber, auc))
 ```
 
